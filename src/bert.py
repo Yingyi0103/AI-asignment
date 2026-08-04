@@ -40,7 +40,7 @@ def train_bert(
     train_batch_size=8,
     eval_batch_size=16,
 ):
-    """Fine-tune a binary sentiment BERT model on the cleaned dataset."""
+    """Fine-tune a negative/neutral/positive BERT model on the cleaned dataset."""
     try:
         from transformers import (
             AutoModelForSequenceClassification,
@@ -82,7 +82,12 @@ def train_bert(
     val_dataset = ReviewDataset(val_encodings, val_labels)
 
     print("Loading pre-trained model...")
-    model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_name,
+        num_labels=3,
+        id2label={0: "Negative", 1: "Neutral", 2: "Positive"},
+        label2id={"Negative": 0, "Neutral": 1, "Positive": 2},
+    )
 
     training_args = TrainingArguments(
         output_dir=str(ROOT_DIR / "results"),

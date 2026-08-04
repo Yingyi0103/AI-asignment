@@ -10,12 +10,12 @@ def _slugify_model_name(model_name):
 
 
 def evaluate_model(model_name, y_true, y_pred, save_metrics=True):
-    """Print and optionally save the evaluation metrics for a binary model."""
+    """Print and optionally save weighted metrics for any number of classes."""
     metrics = {
         "Accuracy": float(accuracy_score(y_true, y_pred)),
-        "Precision": float(precision_score(y_true, y_pred, zero_division=0)),
-        "Recall": float(recall_score(y_true, y_pred, zero_division=0)),
-        "F1-Score": float(f1_score(y_true, y_pred, zero_division=0)),
+        "Precision": float(precision_score(y_true, y_pred, average="weighted", zero_division=0)),
+        "Recall": float(recall_score(y_true, y_pred, average="weighted", zero_division=0)),
+        "F1-Score": float(f1_score(y_true, y_pred, average="weighted", zero_division=0)),
         "Confusion Matrix": confusion_matrix(y_true, y_pred).tolist(),
     }
 

@@ -30,10 +30,19 @@ MODEL_PATHS = {
     "SVM": SAVED_MODELS_DIR / "svm_model.pkl",
 }
 BERT_MODEL_DIR = SAVED_MODELS_DIR / "bert_sentiment_model"
+SENTIMENT_LABELS = {0: "Negative", 1: "Neutral", 2: "Positive"}
 
 STOP_WORDS = set(ENGLISH_STOP_WORDS)
 STEMMER = PorterStemmer() if PorterStemmer is not None else None
 LEMMATIZER = WordNetLemmatizer() if WordNetLemmatizer is not None else None
+WORDNET_AVAILABLE = False
+
+if LEMMATIZER is not None:
+    try:
+        LEMMATIZER.lemmatize("reviews")
+        WORDNET_AVAILABLE = True
+    except LookupError:
+        pass
 
 st.set_page_config(page_title="Review Sentiment Analyzer", page_icon="💬", layout="wide")
 
@@ -48,11 +57,8 @@ def clean_input(text: str) -> str:
     for token in text.split():
         if len(token) <= 1 or token in STOP_WORDS:
             continue
-        if LEMMATIZER is not None:
-            try:
-                token = LEMMATIZER.lemmatize(token)
-            except LookupError:
-                pass  # The optional NLTK WordNet corpus is not installed.
+        if WORDNET_AVAILABLE:
+            token = LEMMATIZER.lemmatize(token)
         if STEMMER is not None:
             token = STEMMER.stem(token)
         cleaned_tokens.append(token)
@@ -125,9 +131,9 @@ def compute_classical_metrics():
             predictions = model.predict(x_test)
             metrics[model_key] = {
                 "Accuracy": float(accuracy_score(y_test, predictions)),
-                "Precision": float(precision_score(y_test, predictions, zero_division=0)),
-                "Recall": float(recall_score(y_test, predictions, zero_division=0)),
-                "F1-Score": float(f1_score(y_test, predictions, zero_division=0)),
+                "Precision": float(precision_score(y_test, predictions, average="weighted", zero_division=0)),
+                "Recall": float(recall_score(y_test, predictions, average="weighted", zero_division=0)),
+                "F1-Score": float(f1_score(y_test, predictions, average="weighted", zero_division=0)),
             }
     return metrics
 
@@ -142,9 +148,11 @@ def analyse_review(review: str, model_name: str):
             raise FileNotFoundError(
                 "BERT is unavailable. Train it with `python src/bert.py` first."
             )
+        if classifier.model.config.num_labels != 3:
+            raise ValueError("This BERT model uses the old two-class dataset. Retrain it for neutral reviews.")
         result = classifier(review, truncation=True, max_length=512)[0]
-        positive = result["label"] in {"LABEL_1", "POSITIVE"}
-        return ("Positive" if positive else "Negative", float(result["score"]), clean_input(review))
+        label = result["label"].title()
+        return (label, float(result["score"]), clean_input(review))
 
     if vectorizer is None:
         raise FileNotFoundError("TF-IDF vectorizer not found. Run `python feature_setup.py` first.")
@@ -155,9 +163,12 @@ def analyse_review(review: str, model_name: str):
 
     prepared_text = clean_input(review)
     features = vectorizer.transform([prepared_text])
-    predicted_index = int(model.predict(features)[0])
-    confidence = float(model.predict_proba(features)[0][predicted_index])
-    return ("Positive" if predicted_index == 1 else "Negative", confidence, prepared_text)
+    if set(model.classes_) != set(SENTIMENT_LABELS):
+        raise ValueError(f"{model_name} uses the old two-class dataset. Retrain it for neutral reviews.")
+    predicted_label = int(model.predict(features)[0])
+    probability_index = list(model.classes_).index(predicted_label)
+    confidence = float(model.predict_proba(features)[0][probability_index])
+    return (SENTIMENT_LABELS[predicted_label], confidence, prepared_text)
 
 
 def categorise_issue(review: str) -> str:
@@ -189,15 +200,16 @@ def categorise_issue(review: str) -> str:
 
 
 @st.cache_data
-def issue_category_summary(
-    reviews: tuple[str, ...], sentiments: tuple[int, ...]
-) -> pd.DataFrame:
-    """Count positive and negative reviews for every issue category."""
+def issue_category_summary(reviews: tuple[str, ...], sentiments: tuple[int, ...]) -> pd.DataFrame:
+    """Count negative, neutral, and positive reviews for every issue category."""
     categories = ("Quality issue", "Delivery issue", "Price", "Seller service", "Other")
-    counts = {category: {"Positive reviews": 0, "Negative reviews": 0} for category in categories}
+    counts = {
+        category: {"Negative reviews": 0, "Neutral reviews": 0, "Positive reviews": 0}
+        for category in categories
+    }
 
     for review, sentiment in zip(reviews, sentiments):
-        sentiment_column = "Positive reviews" if int(sentiment) == 1 else "Negative reviews"
+        sentiment_column = f"{SENTIMENT_LABELS[int(sentiment)]} reviews"
         counts[categorise_issue(review)][sentiment_column] += 1
 
     return pd.DataFrame(
@@ -269,6 +281,8 @@ with analyzer_tab:
         with result_col:
             if sentiment == "Positive":
                 st.success("Positive review")
+            elif sentiment == "Neutral":
+                st.info("Neutral review")
             else:
                 st.error("Negative review")
         with category_col:
@@ -305,13 +319,15 @@ with dataset_tab:
         st.info("No cleaned dataset found. Run `python src/data_preprocessing.py` first.")
     else:
         st.subheader("Cleaned Amazon reviews")
-        summary_left, summary_middle, summary_right = st.columns(3)
+        summary_left, summary_middle, summary_right, summary_last = st.columns(4)
         summary_left.metric("Total reviews", len(dataset))
         if "sentiment" in dataset.columns:
-            positive_reviews = dataset.loc[dataset["sentiment"] == 1, "cleaned_text"].dropna()
+            positive_reviews = dataset.loc[dataset["sentiment"] == 2, "cleaned_text"].dropna()
+            neutral_reviews = dataset.loc[dataset["sentiment"] == 1, "cleaned_text"].dropna()
             negative_reviews = dataset.loc[dataset["sentiment"] == 0, "cleaned_text"].dropna()
-            summary_middle.metric("Positive reviews", len(positive_reviews))
-            summary_right.metric("Negative reviews", len(negative_reviews))
+            summary_middle.metric("Negative reviews", len(negative_reviews))
+            summary_right.metric("Neutral reviews", len(neutral_reviews))
+            summary_last.metric("Positive reviews", len(positive_reviews))
 
             st.subheader("Issue categories by sentiment")
             st.dataframe(
@@ -324,18 +340,25 @@ with dataset_tab:
             )
 
             st.subheader("Most common words by sentiment")
-            positive_column, negative_column = st.columns(2)
-            with positive_column:
-                st.markdown("**Positive reviews**")
-                st.dataframe(
-                    most_common_words(tuple(positive_reviews.astype(str))),
-                    use_container_width=True,
-                    hide_index=True,
-                )
+            negative_column, neutral_column, positive_column = st.columns(3)
             with negative_column:
                 st.markdown("**Negative reviews**")
                 st.dataframe(
                     most_common_words(tuple(negative_reviews.astype(str))),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            with neutral_column:
+                st.markdown("**Neutral reviews**")
+                st.dataframe(
+                    most_common_words(tuple(neutral_reviews.astype(str))),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            with positive_column:
+                st.markdown("**Positive reviews**")
+                st.dataframe(
+                    most_common_words(tuple(positive_reviews.astype(str))),
                     use_container_width=True,
                     hide_index=True,
                 )

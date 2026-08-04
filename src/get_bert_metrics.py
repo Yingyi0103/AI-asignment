@@ -45,7 +45,9 @@ def get_bert_metrics():
     )
 
     predictions = bert_pipeline(test_texts, truncation=True, max_length=512)
-    y_pred = [1 if prediction["label"] == "LABEL_1" else 0 for prediction in predictions]
+    label_to_id = {"LABEL_0": 0, "LABEL_1": 1, "LABEL_2": 2,
+                   "Negative": 0, "Neutral": 1, "Positive": 2}
+    y_pred = [label_to_id[prediction["label"]] for prediction in predictions]
     return evaluate_model("BERT", y_test, y_pred)
 
 
