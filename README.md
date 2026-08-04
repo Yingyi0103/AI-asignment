@@ -8,7 +8,7 @@ A Streamlit web application for classifying Amazon product reviews as **positive
 
 - Multinomial Naive Bayes
 - Linear Support Vector Machine (SVM)
-- Fine-tuned DistilBERT (optional)
+- Fine-tuned BERT (optional)
 
 Alongside a prediction, the app shows model confidence, assigns a simple issue category, retains an in-session review history, and provides dataset and model-performance views.
 
@@ -43,7 +43,7 @@ Alongside a prediction, the app shows model confidence, assigns a simple issue c
     ├── data_preprocessing.py    # Cleans and samples the raw dataset
     ├── naivebayes.py            # Trains Naive Bayes
     ├── svm.py                   # Trains linear SVM
-    ├── bert.py                  # Fine-tunes DistilBERT
+    ├── bert.py                  # Fine-tunes BERT
     ├── get_bert_metrics.py      # Evaluates a saved BERT model
     └── evaluation.py            # Shared evaluation utilities
 ```
@@ -65,7 +65,7 @@ To train or run the BERT model, also install:
 pip install torch transformers
 ```
 
-> On its first run, the BERT training script downloads the `distilbert-base-uncased` checkpoint from Hugging Face.
+> On its first run, the BERT training script downloads the `bert-base-uncased` checkpoint from Hugging Face.
 
 ## Run the app
 

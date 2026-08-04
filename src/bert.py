@@ -35,7 +35,7 @@ class ReviewDataset(torch.utils.data.Dataset):
 
 
 def train_bert(
-    model_name="distilbert-base-uncased",
+    model_name="bert-base-uncased",
     num_train_epochs=2,
     train_batch_size=8,
     eval_batch_size=16,
