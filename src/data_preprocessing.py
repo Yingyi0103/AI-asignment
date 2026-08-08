@@ -160,7 +160,9 @@ def preprocess_dataset(
 
     print("Cleaning text data. Please wait...")
     df["cleaned_text"] = df["raw_text"].apply(clean_text)
-    final_df = df[["cleaned_text", "sentiment"]]
+    # Keep original wording as well: BERT learns better from natural sentences
+    # than from stemmed, stop-word-removed text used by the classical models.
+    final_df = df[["raw_text", "cleaned_text", "sentiment"]]
     final_df = final_df[final_df["cleaned_text"].str.len() > 0]
     final_df = final_df.drop_duplicates(subset=["cleaned_text", "sentiment"])
     final_df = final_df.sample(frac=1, random_state=RANDOM_STATE).reset_index(drop=True)

@@ -2,6 +2,7 @@ from pathlib import Path
 import pickle
 
 from sklearn.svm import SVC
+from sklearn.model_selection import GridSearchCV
 
 try:
     from src.evaluation import evaluate_model
@@ -29,8 +30,25 @@ def train_svm():
     with TRAIN_TEST_DATA_PATH.open("rb") as file_handle:
         x_train_vec, x_test_vec, y_train, y_test = pickle.load(file_handle)
 
-    print("Training SVM model...")
-    model = SVC(kernel="linear", class_weight="balanced", probability=True, random_state=42)
+    print("Selecting the best SVM regularisation setting with cross-validation...")
+    search = GridSearchCV(
+        estimator=SVC(kernel="linear", class_weight="balanced", random_state=42),
+        param_grid={"C": [0.1, 1, 3]},
+        scoring="f1_macro",
+        cv=3,
+        n_jobs=-1,
+    )
+    search.fit(x_train_vec, y_train)
+
+    # Fit the selected model with calibrated probabilities for the Streamlit app.
+    print(f"Training final SVM model with C={search.best_params_['C']}...")
+    model = SVC(
+        kernel="linear",
+        C=search.best_params_["C"],
+        class_weight="balanced",
+        probability=True,
+        random_state=42,
+    )
     model.fit(x_train_vec, y_train)
 
     y_pred = model.predict(x_test_vec)

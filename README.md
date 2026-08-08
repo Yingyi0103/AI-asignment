@@ -21,7 +21,8 @@ Alongside a prediction, the app shows model confidence, assigns a simple issue c
 >>>>>>> c9e4ea23807d8ac93774f687cde20ca737a6f5be
 - Choose between Naive Bayes, SVM, and BERT models when they are trained.
 - See the prediction confidence and the prepared text used by classical models.
-- Categorise review content into quality, delivery, price, seller-service, or other issues.
+- Categorise review content into product quality/performance, product accuracy/expectation,
+  delivery/packaging, seller/customer service, price/value, or other issues.
 - Explore class counts, issue categories, and common words in the cleaned dataset.
 - Compare accuracy, precision, recall, and F1 score for trained models.
 
