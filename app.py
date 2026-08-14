@@ -175,20 +175,28 @@ def categorise_issue(review: str) -> str:
     """Assign the review to the issue category with the most matching keywords."""
     text = review.lower()
     category_keywords = {
-        "Quality issue": (
+        "Product Quality / Performance": (
             "quality", "broken", "defective", "damaged", "faulty", "poor",
             "doesn't work", "does not work", "stopped working", "durability", "scratch",
+            "performance", "malfunction", "not working", "wear and tear", "worn out",
         ),
-        "Delivery issue": (
+        "Product Accuracy / Expectation": (
+            "not as described", "not as advertised", "not as pictured", "not as shown",
+            "different from", "doesn't match", "does not match", "expected", "expectation",
+            "misleading", "wrong colour", "wrong color", "incorrect size", "inaccurate",
+        ),
+        "Delivery / Packaging": (
             "delivery", "deliver", "shipping", "shipped", "arrived", "arrival", "courier",
-            "package", "parcel", "late", "delay", "tracking",
+            "package", "packaging", "packed", "parcel", "late", "delay", "tracking",
+            "box", "wrapping",
         ),
-        "Price": (
-            "price", "cost", "expensive", "cheap", "overpriced", "discount", "value for money",
-        ),
-        "Seller service": (
+        "Seller / Customer Service": (
             "seller", "customer service", "customer support", "support", "response", "respond",
             "return", "replacement", "communication", "contact",
+        ),
+        "Price / Value": (
+            "price", "cost", "expensive", "cheap", "overpriced", "discount", "value for money",
+            "value", "worth it", "good deal", "affordable", "money",
         ),
     }
     scores = {
@@ -202,7 +210,14 @@ def categorise_issue(review: str) -> str:
 @st.cache_data
 def issue_category_summary(reviews: tuple[str, ...], sentiments: tuple[int, ...]) -> pd.DataFrame:
     """Count negative, neutral, and positive reviews for every issue category."""
-    categories = ("Quality issue", "Delivery issue", "Price", "Seller service", "Other")
+    categories = (
+        "Product Quality / Performance",
+        "Product Accuracy / Expectation",
+        "Delivery / Packaging",
+        "Seller / Customer Service",
+        "Price / Value",
+        "Other",
+    )
     counts = {
         category: {"Negative reviews": 0, "Neutral reviews": 0, "Positive reviews": 0}
         for category in categories

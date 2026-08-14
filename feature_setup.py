@@ -13,7 +13,7 @@ VECTORIZER_PATH = "saved_models/tfidf_vectorizer.pkl"
 
 def build_feature_dataset(
     cleaned_csv_path=CLEANED_DATA_PATH,
-    max_features=5000,
+    max_features=20_000,
     test_size=0.2,
     random_state=42,
 ):
@@ -44,7 +44,9 @@ def build_feature_dataset(
     print("Building TF-IDF Vectorizer...")
     vectorizer = TfidfVectorizer(
         max_features=max_features,
-        ngram_range=(1, 2),
+        ngram_range=(1, 3),
+        min_df=2,
+        max_df=0.95,
         sublinear_tf=True,
     )
     x_train_vec = vectorizer.fit_transform(x_train_text)

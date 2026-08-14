@@ -2,6 +2,8 @@ from pathlib import Path
 import pickle
 
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.model_selection import GridSearchCV
+from sklearn.utils.class_weight import compute_sample_weight
 
 try:
     from src.evaluation import evaluate_model
@@ -29,9 +31,21 @@ def train_naive_bayes():
     with TRAIN_TEST_DATA_PATH.open("rb") as file_handle:
         x_train_vec, x_test_vec, y_train, y_test = pickle.load(file_handle)
 
-    print("Training Naive Bayes model...")
-    model = MultinomialNB()
-    model.fit(x_train_vec, y_train)
+    # Balanced weights stop the majority positive class from dominating training.
+    sample_weights = compute_sample_weight(class_weight="balanced", y=y_train)
+    print("Selecting the best Naive Bayes smoothing setting with cross-validation...")
+    search = GridSearchCV(
+        estimator=MultinomialNB(),
+        param_grid={"alpha": [0.01, 0.1, 0.5, 1.0]},
+        scoring="f1_macro",
+        cv=3,
+        n_jobs=-1,
+    )
+    search.fit(x_train_vec, y_train, sample_weight=sample_weights)
+
+    print(f"Training final Naive Bayes model with alpha={search.best_params_['alpha']}...")
+    model = MultinomialNB(alpha=search.best_params_["alpha"])
+    model.fit(x_train_vec, y_train, sample_weight=sample_weights)
 
     y_pred = model.predict(x_test_vec)
     metrics = evaluate_model("Naive Bayes", y_test, y_pred)

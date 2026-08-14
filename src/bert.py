@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
+from sklearn.utils.class_weight import compute_class_weight
 
 try:
     from src.evaluation import evaluate_model
@@ -36,7 +38,7 @@ class ReviewDataset(torch.utils.data.Dataset):
 
 def train_bert(
     model_name="bert-base-uncased",
-    num_train_epochs=2,
+    num_train_epochs=3,
     train_batch_size=8,
     eval_batch_size=16,
 ):
@@ -60,7 +62,9 @@ def train_bert(
     df = pd.read_csv(CLEANED_DATA_PATH)
     df = df.dropna(subset=["cleaned_text", "sentiment"]).copy()
 
-    texts = df["cleaned_text"].astype(str).tolist()
+    # Old datasets remain supported, but new datasets retain raw_text for BERT.
+    text_column = "raw_text" if "raw_text" in df.columns else "cleaned_text"
+    texts = df[text_column].astype(str).tolist()
     labels = df["sentiment"].astype(int).tolist()
 
     train_texts, val_texts, train_labels, val_labels = train_test_split(
@@ -75,8 +79,8 @@ def train_bert(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     print("Tokenizing data...")
-    train_encodings = tokenizer(train_texts, truncation=True, padding=True, max_length=128)
-    val_encodings = tokenizer(val_texts, truncation=True, padding=True, max_length=128)
+    train_encodings = tokenizer(train_texts, truncation=True, padding=True, max_length=256)
+    val_encodings = tokenizer(val_texts, truncation=True, padding=True, max_length=256)
 
     train_dataset = ReviewDataset(train_encodings, train_labels)
     val_dataset = ReviewDataset(val_encodings, val_labels)
@@ -94,19 +98,48 @@ def train_bert(
         num_train_epochs=num_train_epochs,
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=eval_batch_size,
+        learning_rate=2e-5,
+        warmup_ratio=0.1,
         weight_decay=0.01,
         logging_dir=str(ROOT_DIR / "logs"),
         logging_steps=50,
         eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
+        metric_for_best_model="f1_macro",
+        greater_is_better=True,
+        save_total_limit=1,
     )
 
-    trainer = Trainer(
+    class_weights = compute_class_weight(
+        class_weight="balanced",
+        classes=np.unique(train_labels),
+        y=train_labels,
+    )
+    class_weights_tensor = torch.tensor(class_weights, dtype=torch.float)
+
+    class WeightedTrainer(Trainer):
+        """Use class weights so rare neutral reviews influence BERT training."""
+
+        def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+            labels = inputs.pop("labels")
+            outputs = model(**inputs)
+            loss_function = torch.nn.CrossEntropyLoss(
+                weight=class_weights_tensor.to(outputs.logits.device)
+            )
+            loss = loss_function(outputs.logits, labels)
+            return (loss, outputs) if return_outputs else loss
+
+    def compute_metrics(prediction):
+        predicted_labels = np.argmax(prediction.predictions, axis=1)
+        return {"f1_macro": f1_score(prediction.label_ids, predicted_labels, average="macro")}
+
+    trainer = WeightedTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
+        compute_metrics=compute_metrics,
     )
 
     print("Starting BERT training...")
