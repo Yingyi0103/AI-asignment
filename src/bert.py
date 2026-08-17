@@ -1,7 +1,7 @@
 from pathlib import Path
+import pickle
 
 import numpy as np
-import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
@@ -14,13 +14,14 @@ except ImportError:
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+
 DATA_DIR = ROOT_DIR / "data"
 SAVED_MODELS_DIR = ROOT_DIR / "saved_models"
-CLEANED_DATA_PATH = DATA_DIR / "cleaned_amazon_reviews.csv"
+
+DATASET_SPLIT_PATH = DATA_DIR / "dataset_split.pkl"
 BERT_MODEL_DIR = SAVED_MODELS_DIR / "bert_sentiment_model"
 
 SAVED_MODELS_DIR.mkdir(exist_ok=True)
-
 
 class ReviewDataset(torch.utils.data.Dataset):
     def __init__(self, encodings, labels):
@@ -53,37 +54,68 @@ def train_bert(
     except ImportError as exc:
         raise ImportError("transformers is required to train the BERT model.") from exc
 
-    if not CLEANED_DATA_PATH.exists():
+    if not DATASET_SPLIT_PATH.exists():
         raise FileNotFoundError(
-            "Cleaned dataset not found. Run `src/data_preprocessing.py` first."
+            "Shared dataset not found. Run `feature_setup.py` first."
         )
 
     print("Loading data for BERT...")
-    df = pd.read_csv(CLEANED_DATA_PATH)
-    df = df.dropna(subset=["cleaned_text", "sentiment"]).copy()
+    with DATASET_SPLIT_PATH.open("rb") as file_handle:
+        split_data = pickle.load(file_handle)
 
-    # Old datasets remain supported, but new datasets retain raw_text for BERT.
-    text_column = "raw_text" if "raw_text" in df.columns else "cleaned_text"
-    texts = df[text_column].astype(str).tolist()
-    labels = df["sentiment"].astype(int).tolist()
+    train_df = split_data["train_df"].copy()
+    test_df = split_data["test_df"].copy()
 
-    train_texts, val_texts, train_labels, val_labels = train_test_split(
-        texts,
-        labels,
+    print(f"Shared training samples: {len(train_df)}")
+    print(f"Shared test samples: {len(test_df)}")
+
+    train_texts = train_df["raw_text"].astype(str).tolist()
+    train_labels = train_df["sentiment"].astype(int).tolist()
+
+    test_texts = test_df["raw_text"].astype(str).tolist()
+    test_labels = test_df["sentiment"].astype(int).tolist()
+
+    print("Creating BERT training/validation split...")
+    (
+        bert_train_texts,
+        val_texts,
+        bert_train_labels,
+        val_labels,
+    ) = train_test_split(
+        train_texts,
+        train_labels,
         test_size=0.2,
         random_state=42,
-        stratify=labels if len(set(labels)) > 1 else None,
+        stratify=train_labels if len(set(train_labels)) > 1 else None,
     )
+
+    print(f"BERT training samples: {len(bert_train_texts)}")
+    print(f"BERT validation samples: {len(val_texts)}")
+    print(f"Final test samples: {len(test_texts)}")
 
     print("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     print("Tokenizing data...")
-    train_encodings = tokenizer(train_texts, truncation=True, padding=True, max_length=256)
+    train_encodings = tokenizer(
+        bert_train_texts, 
+        truncation=True, 
+        padding=True, 
+        max_length=256,
+    )
+
     val_encodings = tokenizer(val_texts, truncation=True, padding=True, max_length=256)
 
-    train_dataset = ReviewDataset(train_encodings, train_labels)
+    test_encodings = tokenizer(
+        test_texts,
+        truncation=True,
+        padding=True,
+        max_length=256,
+    )
+
+    train_dataset = ReviewDataset(train_encodings, bert_train_labels)
     val_dataset = ReviewDataset(val_encodings, val_labels)
+    test_dataset = ReviewDataset(test_encodings, test_labels)
 
     print("Loading pre-trained model...")
     model = AutoModelForSequenceClassification.from_pretrained(
@@ -93,15 +125,25 @@ def train_bert(
         label2id={"Negative": 0, "Neutral": 1, "Positive": 2},
     )
 
+    class_weights = compute_class_weight(
+        class_weight="balanced",
+        classes=np.unique(bert_train_labels),
+        y=bert_train_labels,
+    )
+
+    class_weights_tensor = torch.tensor(
+        class_weights,
+        dtype=torch.float,
+    )
+
     training_args = TrainingArguments(
         output_dir=str(ROOT_DIR / "results"),
         num_train_epochs=num_train_epochs,
         per_device_train_batch_size=train_batch_size,
         per_device_eval_batch_size=eval_batch_size,
         learning_rate=2e-5,
-        warmup_ratio=0.1,
+        warmup_steps=500,
         weight_decay=0.01,
-        logging_dir=str(ROOT_DIR / "logs"),
         logging_steps=50,
         eval_strategy="epoch",
         save_strategy="epoch",
@@ -110,13 +152,6 @@ def train_bert(
         greater_is_better=True,
         save_total_limit=1,
     )
-
-    class_weights = compute_class_weight(
-        class_weight="balanced",
-        classes=np.unique(train_labels),
-        y=train_labels,
-    )
-    class_weights_tensor = torch.tensor(class_weights, dtype=torch.float)
 
     class WeightedTrainer(Trainer):
         """Use class weights so rare neutral reviews influence BERT training."""
@@ -145,9 +180,10 @@ def train_bert(
     print("Starting BERT training...")
     trainer.train()
 
-    prediction_output = trainer.predict(val_dataset)
+    print("\nEvaluating BERT on the shared final test set...")
+    prediction_output = trainer.predict(test_dataset)
     y_pred = np.argmax(prediction_output.predictions, axis=1)
-    metrics = evaluate_model("BERT", val_labels, y_pred)
+    metrics = evaluate_model("BERT", test_labels, y_pred)
 
     print("Training complete! Saving model and tokenizer...")
     model.save_pretrained(BERT_MODEL_DIR)

@@ -92,23 +92,28 @@ def rating_to_sentiment(rating):
 def load_ratings_dataset(file_path=RATINGS_DATA_PATH):
     """Load the CSV reviews and derive three sentiment classes from star ratings."""
     ratings_df = pd.read_csv(file_path)
+
     required_columns = {"Review", "Cons_rating"}
     missing_columns = required_columns.difference(ratings_df.columns)
+
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Ratings dataset is missing required column(s): {missing}.")
 
     reviews = ratings_df["Review"].fillna("").astype(str).str.strip()
-    titles = ratings_df.get("Title", pd.Series("", index=ratings_df.index)).fillna("").astype(str).str.strip()
-    # Titles add useful context, but do not add an empty title or duplicate it.
-    raw_text = (titles + ". " + reviews).str.strip(". ").where(titles.ne(""), reviews)
+
     result = pd.DataFrame(
         {
-            "raw_text": raw_text,
+            "raw_text": reviews,
             "sentiment": ratings_df["Cons_rating"].apply(rating_to_sentiment),
         }
     )
-    return result.dropna(subset=["raw_text", "sentiment"])
+
+    # Remove rows with empty reviews or invalid sentiment labels.
+    result = result[result["raw_text"].str.len() > 0]
+    result = result.dropna(subset=["sentiment"])
+
+    return result
 
 
 def clean_text(text):
