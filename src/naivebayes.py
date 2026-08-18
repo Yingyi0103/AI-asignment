@@ -16,6 +16,7 @@ DATA_DIR = ROOT_DIR / "data"
 SAVED_MODELS_DIR = ROOT_DIR / "saved_models"
 TRAIN_TEST_DATA_PATH = DATA_DIR / "train_test_data.pkl"
 MODEL_PATH = SAVED_MODELS_DIR / "naive_bayes_model.pkl"
+VECTORIZER_PATH = SAVED_MODELS_DIR / "tfidf_vectorizer.pkl"
 
 SAVED_MODELS_DIR.mkdir(exist_ok=True)
 
@@ -36,7 +37,7 @@ def train_naive_bayes():
     print("Selecting the best Naive Bayes smoothing setting with cross-validation...")
     search = GridSearchCV(
         estimator=MultinomialNB(),
-        param_grid={"alpha": [0.01, 0.1, 0.5, 1.0]},
+        param_grid={"alpha": [0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 2.0]},
         scoring="f1_macro",
         cv=3,
         n_jobs=-1,
@@ -55,7 +56,6 @@ def train_naive_bayes():
 
     print("\nSuccess! Naive Bayes model has been saved to 'saved_models/'.")
     return model, metrics
-
 
 if __name__ == "__main__":
     train_naive_bayes()

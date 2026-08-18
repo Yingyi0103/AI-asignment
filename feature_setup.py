@@ -20,7 +20,7 @@ VECTORIZER_PATH = SAVED_MODELS_DIR / "tfidf_vectorizer.pkl"
 
 def build_feature_dataset(
     cleaned_csv_path=CLEANED_DATA_PATH,
-    max_features=20_000,
+    max_features=50_000,
     test_size=0.2,
     random_state=42,
 ):
@@ -108,10 +108,11 @@ def build_feature_dataset(
 
     vectorizer = TfidfVectorizer(
         max_features=max_features,
-        ngram_range=(1, 3),
+        ngram_range=(1, 2),
         min_df=2,
         max_df=0.95,
         sublinear_tf=True,
+        strip_accents="unicode",
     )
 
     # Fit ONLY on training data to prevent data leakage.

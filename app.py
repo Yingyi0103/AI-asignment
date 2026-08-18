@@ -186,8 +186,9 @@ def categorise_issue(review: str) -> str:
             "misleading", "wrong colour", "wrong color", "incorrect size", "inaccurate",
         ),
         "Delivery / Packaging": (
-            "delivery", "deliver", "shipping", "shipped", "arrived", "arrival", "courier",
-            "package", "packaging", "packed", "parcel", "late", "delay", "tracking",
+            "delivery", "deliver", "delivered", "shipping", "shipped", "ship", 
+            "arrived", "arrival", "arrives", "arrive", "courier",
+            "package", "packaging", "packed", "parcel", "late", "delay", "delayed", "tracking",
             "box", "wrapping",
         ),
         "Seller / Customer Service": (

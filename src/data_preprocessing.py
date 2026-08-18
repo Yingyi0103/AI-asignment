@@ -29,10 +29,20 @@ POSITIVE = 2
 FASTTEXT_PATTERN = re.compile(r"^__label__(?P<label>\S+)\s+(?P<text>.+)$")
 NON_LETTER_PATTERN = re.compile(r"[^a-zA-Z\s']")
 WHITESPACE_PATTERN = re.compile(r"\s+")
-STOP_WORDS = set(ENGLISH_STOP_WORDS)
 STEMMER = PorterStemmer() if PorterStemmer is not None else None
 LEMMATIZER = WordNetLemmatizer() if WordNetLemmatizer is not None else None
 WORDNET_AVAILABLE = False
+
+STOP_WORDS = set(ENGLISH_STOP_WORDS)
+
+# Keep important negation words for sentiment analysis.
+NEGATION_WORDS = {
+    "no", "nor", "not", "never", "none", "nothing", "neither", "nowhere", "cannot", "cant",
+    "don't", "doesn't", "didn't", "isn't", "aren't", "wasn't", "weren't", "won't", "wouldn't",
+    "couldn't", "shouldn't", "haven't", "hasn't", "hadn't",
+}
+
+STOP_WORDS = STOP_WORDS - NEGATION_WORDS
 
 if LEMMATIZER is not None:
     try:
@@ -117,27 +127,50 @@ def load_ratings_dataset(file_path=RATINGS_DATA_PATH):
 
 
 def clean_text(text):
-    """Clean text into the same format used for training and app prediction."""
+    """Clean review text while preserving sentiment information."""
     text = unicodedata.normalize("NFKC", str(text))
+    text = text.lower()
+
+    # Remove URLs.
     text = re.sub(r"https?://\S+|www\.\S+", " ", text)
-    text = NON_LETTER_PATTERN.sub(" ", text.lower())
+
+    # Preserve important negation meaning.
+    text = re.sub(r"\bcan't\b", "cannot", text)
+    text = re.sub(r"\bwon't\b", "will not", text)
+    text = re.sub(r"\bdon't\b", "do not", text)
+    text = re.sub(r"\bdoesn't\b", "does not", text)
+    text = re.sub(r"\bdidn't\b", "did not", text)
+    text = re.sub(r"\bisn't\b", "is not", text)
+    text = re.sub(r"\baren't\b", "are not", text)
+    text = re.sub(r"\bwasn't\b", "was not", text)
+    text = re.sub(r"\bweren't\b", "were not", text)
+    text = re.sub(r"\bwouldn't\b", "would not", text)
+    text = re.sub(r"\bcouldn't\b", "could not", text)
+    text = re.sub(r"\bshouldn't\b", "should not", text)
+    text = re.sub(r"\bhasn't\b", "has not", text)
+    text = re.sub(r"\bhaven't\b", "have not", text)
+    text = re.sub(r"\bhadn't\b", "had not", text)
+
+    # Remove non-letter characters.
+    text = NON_LETTER_PATTERN.sub(" ", text)
+
+    # Normalize whitespace.
     text = WHITESPACE_PATTERN.sub(" ", text).strip()
 
     cleaned_tokens = []
+
     for token in text.split():
-        if len(token) <= 1 or token in STOP_WORDS:
+        if len(token) <= 1:
             continue
 
-        if WORDNET_AVAILABLE:
-            token = LEMMATIZER.lemmatize(token)
+        if token in STOP_WORDS and token not in NEGATION_WORDS:
+            continue
 
-        if STEMMER is not None:
-            token = STEMMER.stem(token)
-
+        # IMPORTANT:
+        # Do NOT stem or lemmatize sentiment words.
         cleaned_tokens.append(token)
 
     return " ".join(cleaned_tokens)
-
 
 def preprocess_dataset(
     fasttext_path=RAW_DATA_PATH,
