@@ -1,8 +1,6 @@
-import pandas as pd
+import pickle
 
-df = pd.read_csv("data/final_sentiment_dataset.csv")
+with open("data/train_test_data.pkl", "rb") as f:
+    data = pickle.load(f)
 
-print(df.columns.tolist())
-print(df.head())
-print(df.shape)
-print(df["sentiment"].value_counts().sort_index())
+print(data.keys())
