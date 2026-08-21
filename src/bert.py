@@ -48,6 +48,7 @@ def train_bert(
         from transformers import (
             AutoModelForSequenceClassification,
             AutoTokenizer,
+            DataCollatorWithPadding,
             Trainer,
             TrainingArguments,
         )
@@ -69,10 +70,28 @@ def train_bert(
     print(f"Shared training samples: {len(train_df)}")
     print(f"Shared test samples: {len(test_df)}")
 
-    train_texts = train_df["raw_text"].astype(str).tolist()
+    # Check required column
+    required_columns = {"model_text", "sentiment"}
+
+    missing_train = required_columns - set(train_df.columns)
+    missing_test = required_columns - set(test_df.columns)
+
+    if missing_train:
+        raise KeyError(
+            f"Training data is missing columns: {missing_train}. "
+            f"Available columns: {train_df.columns.tolist()}"
+        )
+
+    if missing_test:
+        raise KeyError(
+            f"Test data is missing columns: {missing_test}. "
+            f"Available columns: {test_df.columns.tolist()}"
+        )
+
+    train_texts = train_df["model_text"].astype(str).tolist()
     train_labels = train_df["sentiment"].astype(int).tolist()
 
-    test_texts = test_df["raw_text"].astype(str).tolist()
+    test_texts = test_df["model_text"].astype(str).tolist()
     test_labels = test_df["sentiment"].astype(int).tolist()
 
     print("Creating BERT training/validation split...")
@@ -100,17 +119,24 @@ def train_bert(
     train_encodings = tokenizer(
         bert_train_texts, 
         truncation=True, 
-        padding=True, 
         max_length=256,
     )
 
-    val_encodings = tokenizer(val_texts, truncation=True, padding=True, max_length=256)
+    val_encodings = tokenizer(
+        val_texts, 
+        truncation=True, 
+        max_length=256
+    )
 
     test_encodings = tokenizer(
         test_texts,
         truncation=True,
-        padding=True,
         max_length=256,
+    )
+
+    # Dynamic padding
+    data_collator = DataCollatorWithPadding(
+        tokenizer=tokenizer
     )
 
     train_dataset = ReviewDataset(train_encodings, bert_train_labels)
@@ -124,6 +150,8 @@ def train_bert(
         id2label={0: "Negative", 1: "Neutral", 2: "Positive"},
         label2id={"Negative": 0, "Neutral": 1, "Positive": 2},
     )
+
+    print("Calculating Class Weights...")
 
     class_weights = compute_class_weight(
         class_weight="balanced",
@@ -151,12 +179,13 @@ def train_bert(
         metric_for_best_model="f1_macro",
         greater_is_better=True,
         save_total_limit=1,
+        report_to="none"
     )
 
     class WeightedTrainer(Trainer):
         """Use class weights so rare neutral reviews influence BERT training."""
 
-        def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None,):
             labels = inputs.pop("labels")
             outputs = model(**inputs)
             loss_function = torch.nn.CrossEntropyLoss(
@@ -167,13 +196,15 @@ def train_bert(
 
     def compute_metrics(prediction):
         predicted_labels = np.argmax(prediction.predictions, axis=1)
-        return {"f1_macro": f1_score(prediction.label_ids, predicted_labels, average="macro")}
+        macro_f1 = f1_score(prediction.label_ids, predicted_labels, average="macro",)
+        return {"f1_macro": macro_f1}
 
     trainer = WeightedTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
+        data_collator=data_collator,
         compute_metrics=compute_metrics,
     )
 
@@ -186,6 +217,8 @@ def train_bert(
     metrics = evaluate_model("BERT", test_labels, y_pred)
 
     print("Training complete! Saving model and tokenizer...")
+    BERT_MODEL_DIR.mkdir(parents=True,exist_ok=True,)
+    
     model.save_pretrained(BERT_MODEL_DIR)
     tokenizer.save_pretrained(BERT_MODEL_DIR)
 
