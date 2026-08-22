@@ -16,12 +16,20 @@ except ImportError:
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
 DATA_DIR = ROOT_DIR / "data"
-SAVED_MODELS_DIR = ROOT_DIR / "saved_models"
+# SAVED_MODELS_DIR = ROOT_DIR / "saved_models" # put it back
+
+BERT_MODEL_DIR = Path(
+    "/content/drive/MyDrive/AI_Assignment/saved_models/bert_sentiment_model"
+) # remove after run
+BERT_MODEL_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
 DATASET_SPLIT_PATH = DATA_DIR / "dataset_split.pkl"
-BERT_MODEL_DIR = SAVED_MODELS_DIR / "bert_sentiment_model"
+# BERT_MODEL_DIR = SAVED_MODELS_DIR / "bert_sentiment_model" # put it back
 
-SAVED_MODELS_DIR.mkdir(exist_ok=True)
+# SAVED_MODELS_DIR.mkdir(exist_ok=True) #put it back
 
 class ReviewDataset(torch.utils.data.Dataset):
     def __init__(self, encodings, labels):
