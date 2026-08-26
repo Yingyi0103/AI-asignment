@@ -74,6 +74,7 @@ The application provides sentiment predictions, model confidence, issue-category
     ├── bert.py                         # Fine-tunes BERT
     └── get_bert_metrics.py             # Evaluates saved BERT model
 
+```
 
 ## Requirements
 Before running the project, install Python.
@@ -84,8 +85,8 @@ You can check your Python version using:
 python --version
 ```
 
-# Installation
-## 1. Clone the Repository
+## Installation
+### 1. Clone the Repository
 
 Clone the repository from GitHub:
 
@@ -98,7 +99,7 @@ Move into the project directory:
 ```bash
 cd AI-asignment
 ```
-## 2. Install Git LFS
+### 2. Install Git LFS
 
 The trained BERT model is stored using Git Large File Storage (Git LFS).
 
@@ -122,7 +123,7 @@ saved_models/bert_sentiment_model/model.safetensors
 
 ---
 
-## 3. Install Python Dependencies
+### 3. Install Python Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -148,7 +149,7 @@ pip install scipy
 
 ---
 
-# Running the Application
+## Running the Application
 
 From the project root directory, run:
 
@@ -168,9 +169,9 @@ The application should open in your web browser.
 
 ---
 
-# Using the Application
+## Using the Application
 
-## Single Review Prediction
+### Single Review Prediction
 
 1. Open the Streamlit application.
 2. Select a sentiment analysis model.
@@ -189,11 +190,11 @@ The product arrived quickly and works exactly as expected.
 
 ---
 
-## Available Models
+### Available Models
 
 The application supports three sentiment analysis models.
 
-### Multinomial Naive Bayes
+#### 1. Multinomial Naive Bayes
 
 A classical machine learning model that uses TF-IDF features.
 
@@ -205,7 +206,7 @@ Advantages:
 
 ---
 
-### Linear Support Vector Machine
+#### 2. Linear Support Vector Machine
 
 A classical machine learning model trained using TF-IDF features.
 
@@ -217,7 +218,7 @@ Advantages:
 
 ---
 
-### Fine-Tuned BERT
+#### 3. Fine-Tuned BERT
 
 A transformer-based deep learning model fine-tuned for sentiment classification.
 
@@ -234,7 +235,7 @@ Disadvantages:
 
 ---
 
-# Dataset Preparation
+## Dataset Preparation
 
 The project uses multiple review datasets to create a balanced three-class sentiment dataset.
 
@@ -268,46 +269,7 @@ The dataset is created from multiple review sources.
 
 ---
 
-# Rebuilding the Dataset
-
-If you want to regenerate the final sentiment dataset, run:
-
-```bash
-python src/data_preprocessing.py
-```
-
-The script creates:
-
-```text
-data/final_sentiment_dataset.csv
-```
-
-The preprocessing process:
-
-1. Loads the available review datasets.
-2. Removes HTML tags and URLs.
-3. Removes invalid reviews.
-4. Removes very short reviews.
-5. Removes duplicate reviews.
-6. Converts ratings into sentiment labels.
-7. Filters neutral candidates.
-8. Removes strongly positive or negative reviews from neutral candidates.
-9. Balances the dataset.
-10. Saves the final dataset.
-
----
-
-#
-```
-
-### 2. Build TF-IDF features
-
-This creates the train/test split and saves the vectorizer.
-
-```bash
-python feature_setup.py
-```
- Building TF-IDF Features
+## Rebuilding the Dataset
 
 Before training Naive Bayes or SVM, create the shared train/test split and TF-IDF features.
 
@@ -340,7 +302,7 @@ The same train/test split is used to support fair comparison between models.
 
 ---
 
-# Training Naive Bayes
+## Training Naive Bayes
 
 Run:
 
@@ -357,7 +319,7 @@ saved_models/naive_bayes_metrics.json
 
 ---
 
-# Training SVM
+## Training SVM
 
 Run:
 
@@ -374,7 +336,7 @@ saved_models/svm_metrics.json
 
 ---
 
-# Training BERT
+## Training BERT
 
 BERT training requires significantly more computational resources than Naive Bayes and SVM.
 
@@ -403,7 +365,7 @@ tokenizer_config.json
 
 ---
 
-# Evaluating BERT
+## Evaluating BERT
 
 To evaluate the saved BERT model, run:
 
@@ -419,50 +381,55 @@ saved_models/bert_metrics.json
 
 ---
 
-```
-# Recommended Training Order
+## Recommended Training Order
 
 If you are starting from the raw datasets, run the commands in the following order.
 
-## Step 1: Create the Final Dataset
+### Step 1: Create the Final Dataset
 
 ```bash
 python src/data_preprocessing.py
 ```
 
-## Step 2: Build TF-IDF Features
+### Step 2: Build TF-IDF Features
 
 ```bash
 python feature_setup.py
 ```
 
-## Step 3: Train Naive Bayes
+### Step 3: Train Naive Bayes
 
 ```bash
 python src/naivebayes.py
 ```
 
-## Step 4: Train SVM
+### Step 4: Train SVM
 
 ```bash
 python src/svm.py
 ```
 
-## Step 5: Train BERT
+### Step 5: Train BERT
 
 ```bash
 python src/bert.py
 ```
 
-## Step 6: Evaluate BERT
+### Step 6: Evaluate BERT
 
 ```bash
 python src/get_bert_metrics.py
 ```
 
+### Step 7: Run Streamlit Application
+
+```bash
+streamlit run app.py
+```
+
 ---
 
-# Using Pre-Trained Models
+## Using Pre-Trained Models
 
 The repository may already contain trained models.
 
@@ -485,7 +452,7 @@ streamlit run app.py
 
 ---
 
-# Git LFS
+## Git LFS
 
 The BERT model file is large:
 
@@ -512,9 +479,11 @@ The saved Naive Bayes model was evaluated on the held-out test split:
 
 | Model | Accuracy | Precision | Recall | F1 score |
 | --- | ---: | ---: | ---: | ---: |
-| Naive Bayes | 84.84% | 84.45% | 85.40% | 84.92% |
+| Naive Bayes | 73.85% | 74.36% | 73.85% | 74.00% |
+| SVM | 76.08% | 76.07% | 76.08% | 76.07% |
+| BERT | 80.77% | 80.89% | 80.77% | 80.81% |
 
-# Notes
+## Notes
 
 - Naive Bayes and SVM use TF-IDF features.
 - BERT uses natural review text.
@@ -525,7 +494,7 @@ The saved Naive Bayes model was evaluated on the held-out test split:
 
 ---
 
-# Technologies Used
+## Technologies Used
 
 The project uses:
 
@@ -542,7 +511,7 @@ The project uses:
 
 ---
 
-# Running the Complete System
+## Running the Complete System
 
 For most users who simply want to run the application:
 
@@ -558,6 +527,6 @@ streamlit run app.py
 
 ---
 
-# License
+## License
 
 This project is developed for educational and academic purposes.
