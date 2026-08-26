@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import numpy as np
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
@@ -22,7 +23,7 @@ except ImportError:
 ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / "data"
 SAVED_MODELS_DIR = ROOT_DIR / "saved_models"
-CLEANED_DATA_PATH = DATA_DIR / "cleaned_amazon_reviews.csv"
+DATA_PATH = DATA_DIR / "final_sentiment_dataset.csv"
 TRAIN_TEST_DATA_PATH = DATA_DIR / "train_test_data.pkl"
 VECTORIZER_PATH = SAVED_MODELS_DIR / "tfidf_vectorizer.pkl"
 MODEL_PATHS = {
@@ -94,8 +95,18 @@ def load_models():
 
 
 @st.cache_data
-def load_cleaned_dataset():
-    return pd.read_csv(CLEANED_DATA_PATH) if CLEANED_DATA_PATH.exists() else None
+def load_dataset():
+    if not DATA_PATH.exists():
+        return None
+
+    dataset = pd.read_csv(DATA_PATH)
+
+    # The final dataset stores the review text as "text".
+    # The Streamlit dataset analysis expects "cleaned_text".
+    if "text" in dataset.columns and "cleaned_text" not in dataset.columns:
+        dataset["cleaned_text"] = dataset["text"].fillna("").astype(str)
+
+    return dataset
 
 
 @st.cache_data
@@ -150,7 +161,7 @@ def analyse_review(review: str, model_name: str):
             )
         if classifier.model.config.num_labels != 3:
             raise ValueError("This BERT model uses the old two-class dataset. Retrain it for neutral reviews.")
-        result = classifier(review, truncation=True, max_length=512)[0]
+        result = classifier(review, truncation=True, max_length=256)[0]
         label = result["label"].title()
         return (label, float(result["score"]), clean_input(review))
 
@@ -163,11 +174,32 @@ def analyse_review(review: str, model_name: str):
 
     prepared_text = clean_input(review)
     features = vectorizer.transform([prepared_text])
+
     if set(model.classes_) != set(SENTIMENT_LABELS):
         raise ValueError(f"{model_name} uses the old two-class dataset. Retrain it for neutral reviews.")
+
     predicted_label = int(model.predict(features)[0])
-    probability_index = list(model.classes_).index(predicted_label)
-    confidence = float(model.predict_proba(features)[0][probability_index])
+
+    if hasattr(model, "predict_proba"):
+        probability_index = list(model.classes_).index(predicted_label)
+        confidence = float(model.predict_proba(features)[0][probability_index])
+    else:
+        decision_scores = model.decision_function(features)[0]
+
+        exp_scores = np.exp(
+            decision_scores - np.max(decision_scores)
+        )
+
+        probabilities = exp_scores / exp_scores.sum()
+
+        probability_index = list(model.classes_).index(
+            predicted_label
+        )
+
+        confidence = float(
+            probabilities[probability_index]
+        )
+
     return (SENTIMENT_LABELS[predicted_label], confidence, prepared_text)
 
 
@@ -186,8 +218,9 @@ def categorise_issue(review: str) -> str:
             "misleading", "wrong colour", "wrong color", "incorrect size", "inaccurate",
         ),
         "Delivery / Packaging": (
-            "delivery", "deliver", "shipping", "shipped", "arrived", "arrival", "courier",
-            "package", "packaging", "packed", "parcel", "late", "delay", "tracking",
+            "delivery", "deliver", "delivered", "shipping", "shipped", "ship", 
+            "arrived", "arrival", "arrives", "arrive", "courier",
+            "package", "packaging", "packed", "parcel", "late", "delay", "delayed", "tracking",
             "box", "wrapping",
         ),
         "Seller / Customer Service": (
@@ -329,7 +362,7 @@ with analyzer_tab:
         st.info("Your completed analyses will appear here during this session.")
 
 with dataset_tab:
-    dataset = load_cleaned_dataset()
+    dataset = load_dataset()
     if dataset is None:
         st.info("No cleaned dataset found. Run `python src/data_preprocessing.py` first.")
     else:

@@ -1,0 +1,79 @@
+# ============================================================
+# Product Review Sentiment Analyzer
+# Python Dependencies
+# ============================================================
+
+# ------------------------------------------------------------
+# Web Application Framework
+# ------------------------------------------------------------
+streamlit>=1.30.0
+
+
+# ------------------------------------------------------------
+# Data Processing and Numerical Computing
+# ------------------------------------------------------------
+pandas>=2.0.0
+numpy>=1.24.0
+
+
+# ------------------------------------------------------------
+# Machine Learning
+# Used for:
+# - TF-IDF Vectorization
+# - Multinomial Naive Bayes
+# - Linear SVM
+# - Model Evaluation
+# - Train/Test Splitting
+# ------------------------------------------------------------
+scikit-learn>=1.3.0
+
+
+# ------------------------------------------------------------
+# Natural Language Processing
+# Used for:
+# - Stopwords
+# - Stemming
+# - Lemmatization
+# - Text Preprocessing
+# ------------------------------------------------------------
+nltk>=3.8.0
+
+
+# ------------------------------------------------------------
+# Deep Learning
+# Used for Fine-Tuned BERT Sentiment Model
+# ------------------------------------------------------------
+torch>=2.0.0
+
+
+# ------------------------------------------------------------
+# Hugging Face Transformers
+# Used for:
+# - BERT Tokenizer
+# - BERT Model
+# - Sentiment Classification Pipeline
+# ------------------------------------------------------------
+transformers>=4.35.0
+
+
+# ------------------------------------------------------------
+# Model File Support
+# Used to load model.safetensors
+# ------------------------------------------------------------
+safetensors>=0.4.0
+
+
+# ------------------------------------------------------------
+# Additional Hugging Face Dependencies
+# Used internally by Transformers and recommended
+# for tokenizer and model compatibility
+# ------------------------------------------------------------
+tokenizers>=0.15.0
+huggingface-hub>=0.20.0
+
+
+# ------------------------------------------------------------
+# Progress Bars
+# Used during model training and processing
+# ------------------------------------------------------------
+tqdm>=4.65.0

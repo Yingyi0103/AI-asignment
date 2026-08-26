@@ -1,80 +1,78 @@
-import bz2
-import re
-import unicodedata
 from pathlib import Path
-
 import pandas as pd
-from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+import re
+import sys
 
-try:
-    from nltk.stem import PorterStemmer, WordNetLemmatizer
-except ImportError:
-    PorterStemmer = None
-    WordNetLemmatizer = None
+sys.stdout.reconfigure(encoding="utf-8")
 
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
-RAW_DATA_PATH = PROJECT_DIR / "data" / "train.ft.txt.bz2"
-RATINGS_DATA_PATH = PROJECT_DIR / "data" / "data_amazon.xlsx - Sheet1.csv"
-CLEANED_DATA_PATH = PROJECT_DIR / "data" / "cleaned_amazon_reviews.csv"
-TARGET_SAMPLES_PER_CLASS = 25_000
+DATA_DIR = PROJECT_DIR / "data"
+
+OLD_DATA = DATA_DIR / "data_amazon.xlsx - Sheet1.csv"
+NEW_BINARY_DATA = DATA_DIR / "amazon_new.csv"
+NEW_RATING_DATA = DATA_DIR / "Reviews_New.csv"
+
+OUTPUT_FILE = DATA_DIR / "final_sentiment_dataset.csv"
+
+TARGET_PER_CLASS = 25_000
 RANDOM_STATE = 42
 
-# A common three-class rating convention.  The fastText source has no neutral
-# class; it is supplied by the ratings dataset (three-star reviews).
+
+# ============================================================
+# SENTIMENT LABELS
+# ============================================================
+
 NEGATIVE = 0
 NEUTRAL = 1
 POSITIVE = 2
 
-FASTTEXT_PATTERN = re.compile(r"^__label__(?P<label>\S+)\s+(?P<text>.+)$")
-NON_LETTER_PATTERN = re.compile(r"[^a-zA-Z\s']")
-WHITESPACE_PATTERN = re.compile(r"\s+")
-STOP_WORDS = set(ENGLISH_STOP_WORDS)
-STEMMER = PorterStemmer() if PorterStemmer is not None else None
-LEMMATIZER = WordNetLemmatizer() if WordNetLemmatizer is not None else None
-WORDNET_AVAILABLE = False
 
-if LEMMATIZER is not None:
-    try:
-        LEMMATIZER.lemmatize("reviews")
-        WORDNET_AVAILABLE = True
-    except LookupError:
-        # WordNet is optional; avoid raising an exception for every token.
-        pass
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
 
+def clean_review(text):
+    """
+    Basic cleaning for dataset construction.
+    We keep the actual wording because TF-IDF will
+    perform the final vectorization later.
+    """
 
-def load_fasttext_dataset(file_path=RAW_DATA_PATH, samples_per_class=TARGET_SAMPLES_PER_CLASS):
-    """Load a balanced negative/positive sample from the fastText dataset."""
-    rows = []
-    class_counts = {NEGATIVE: 0, POSITIVE: 0}
+    if pd.isna(text):
+        return ""
 
-    with bz2.open(file_path, "rt", encoding="utf-8", errors="ignore") as file_handle:
-        for line in file_handle:
-            match = FASTTEXT_PATTERN.match(line.strip())
-            if not match:
-                continue
+    text = str(text)
 
-            raw_label = match.group("label").strip()
-            sentiment = NEGATIVE if raw_label == "1" else POSITIVE if raw_label == "2" else None
-            raw_text = match.group("text").strip()
+    # Remove HTML tags
+    text = re.sub(r"<[^>]+>", " ", text)
 
-            if sentiment is None or not raw_text or class_counts[sentiment] >= samples_per_class:
-                continue
+    # Remove URLs
+    text = re.sub(
+        r"https?://\S+|www\.\S+",
+        " ",
+        text,
+        flags=re.IGNORECASE
+    )
 
-            rows.append({"raw_text": raw_text, "sentiment": sentiment})
-            class_counts[sentiment] += 1
+    # Normalize whitespace
+    text = re.sub(r"\s+", " ", text)
 
-            if all(count >= samples_per_class for count in class_counts.values()):
-                break
-
-    if not rows:
-        raise ValueError(f"No valid fastText records were found in {file_path}.")
-
-    return pd.DataFrame(rows)
+    return text.strip()
 
 
 def rating_to_sentiment(rating):
-    """Convert a one-to-five star rating to negative, neutral, or positive."""
+    """
+    Convert rating into sentiment:
+
+    1-2 -> Negative
+    3   -> Neutral candidate
+    4-5 -> Positive
+    """
+
     try:
         rating = float(rating)
     except (TypeError, ValueError):
@@ -82,106 +80,488 @@ def rating_to_sentiment(rating):
 
     if rating <= 2:
         return NEGATIVE
-    if rating == 3:
+
+    elif rating == 3:
         return NEUTRAL
-    if rating >= 4:
+
+    elif rating >= 4:
         return POSITIVE
+
     return None
 
 
-def load_ratings_dataset(file_path=RATINGS_DATA_PATH):
-    """Load the CSV reviews and derive three sentiment classes from star ratings."""
-    ratings_df = pd.read_csv(file_path)
-    required_columns = {"Review", "Cons_rating"}
-    missing_columns = required_columns.difference(ratings_df.columns)
-    if missing_columns:
-        missing = ", ".join(sorted(missing_columns))
-        raise ValueError(f"Ratings dataset is missing required column(s): {missing}.")
+# ============================================================
+# LOAD OLD AMAZON DATASET
+# ============================================================
 
-    reviews = ratings_df["Review"].fillna("").astype(str).str.strip()
-    titles = ratings_df.get("Title", pd.Series("", index=ratings_df.index)).fillna("").astype(str).str.strip()
-    # Titles add useful context, but do not add an empty title or duplicate it.
-    raw_text = (titles + ". " + reviews).str.strip(". ").where(titles.ne(""), reviews)
-    result = pd.DataFrame(
-        {
-            "raw_text": raw_text,
-            "sentiment": ratings_df["Cons_rating"].apply(rating_to_sentiment),
-        }
+print("=" * 70)
+print("LOADING OLD AMAZON DATASET")
+print("=" * 70)
+
+df_old = pd.read_csv(OLD_DATA)
+
+print("Columns:")
+print(df_old.columns.tolist())
+
+print(f"Rows: {len(df_old):,}")
+
+
+required_old = {"Review", "Cons_rating"}
+
+if not required_old.issubset(df_old.columns):
+    raise ValueError(
+        f"Old dataset must contain {required_old}. "
+        f"Found: {df_old.columns.tolist()}"
     )
-    return result.dropna(subset=["raw_text", "sentiment"])
+
+df_old = df_old[["Review", "Cons_rating"]].copy()
+
+df_old.rename(
+    columns={"Review": "text"},
+    inplace=True
+)
+
+df_old["text"] = df_old["text"].apply(clean_review)
+
+df_old["sentiment"] = df_old["Cons_rating"].apply(
+    rating_to_sentiment
+)
+
+df_old["source"] = "old_amazon"
 
 
-def clean_text(text):
-    """Clean text into the same format used for training and app prediction."""
-    text = unicodedata.normalize("NFKC", str(text))
-    text = re.sub(r"https?://\S+|www\.\S+", " ", text)
-    text = NON_LETTER_PATTERN.sub(" ", text.lower())
-    text = WHITESPACE_PATTERN.sub(" ", text).strip()
+# ============================================================
+# LOAD NEW BINARY DATASET
+# ============================================================
 
-    cleaned_tokens = []
-    for token in text.split():
-        if len(token) <= 1 or token in STOP_WORDS:
-            continue
+print("\n" + "=" * 70)
+print("LOADING NEW BINARY DATASET")
+print("=" * 70)
 
-        if WORDNET_AVAILABLE:
-            token = LEMMATIZER.lemmatize(token)
+df_binary = pd.read_csv(NEW_BINARY_DATA)
 
-        if STEMMER is not None:
-            token = STEMMER.stem(token)
+print("Columns:")
+print(df_binary.columns.tolist())
 
-        cleaned_tokens.append(token)
-
-    return " ".join(cleaned_tokens)
+print(f"Rows: {len(df_binary):,}")
 
 
-def preprocess_dataset(
-    fasttext_path=RAW_DATA_PATH,
-    ratings_path=RATINGS_DATA_PATH,
-    output_path=CLEANED_DATA_PATH,
-):
-    """Combine both raw datasets, clean them, and save one three-class CSV."""
-    fasttext_path = Path(fasttext_path)
-    ratings_path = Path(ratings_path)
-    output_path = Path(output_path)
+required_binary = {"Text", "label"}
 
-    if not fasttext_path.exists():
-        raise FileNotFoundError(f"fastText dataset not found: {fasttext_path}")
-    if not ratings_path.exists():
-        raise FileNotFoundError(f"Ratings dataset not found: {ratings_path}")
-
-    print("Loading fastText and ratings datasets...")
-    df = pd.concat(
-        [load_fasttext_dataset(fasttext_path), load_ratings_dataset(ratings_path)],
-        ignore_index=True,
+if not required_binary.issubset(df_binary.columns):
+    raise ValueError(
+        f"Binary dataset must contain {required_binary}. "
+        f"Found: {df_binary.columns.tolist()}"
     )
-    df = df.dropna(subset=["raw_text", "sentiment"]).copy()
-    df["raw_text"] = df["raw_text"].astype(str)
-    df["sentiment"] = df["sentiment"].astype(int)
 
-    print("Cleaning text data. Please wait...")
-    df["cleaned_text"] = df["raw_text"].apply(clean_text)
-    # Keep original wording as well: BERT learns better from natural sentences
-    # than from stemmed, stop-word-removed text used by the classical models.
-    final_df = df[["raw_text", "cleaned_text", "sentiment"]]
-    final_df = final_df[final_df["cleaned_text"].str.len() > 0]
-    final_df = final_df.drop_duplicates(subset=["cleaned_text", "sentiment"])
-    final_df = final_df.sample(frac=1, random_state=RANDOM_STATE).reset_index(drop=True)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        final_df.to_csv(output_path, index=False)
-    except PermissionError as exc:
-        raise PermissionError(
-            f"Cannot write '{output_path}'. Close the file in Excel or another program, then run this script again."
-        ) from exc
+df_binary = df_binary[["Text", "label"]].copy()
 
-    class_names = {NEGATIVE: "negative", NEUTRAL: "neutral", POSITIVE: "positive"}
-    counts = final_df["sentiment"].value_counts().sort_index()
-    count_summary = ", ".join(
-        f"{class_names[label]}={counts.get(label, 0)}" for label in class_names
+df_binary.rename(
+    columns={"Text": "text"},
+    inplace=True
+)
+
+df_binary["text"] = df_binary["text"].apply(clean_review)
+
+# Dataset definition:
+# 0 = Negative
+# 1 = Positive
+df_binary["sentiment"] = df_binary["label"].map({
+    0: NEGATIVE,
+    1: POSITIVE
+})
+
+df_binary["source"] = "new_binary"
+
+
+# ============================================================
+# LOAD NEW RATING DATASET
+# ============================================================
+
+print("\n" + "=" * 70)
+print("LOADING NEW RATING DATASET")
+print("=" * 70)
+
+df_rating = pd.read_csv(
+    NEW_RATING_DATA,
+    encoding="utf-8",
+    usecols=["Score", "Text"]
+)
+
+print("Required columns loaded successfully.")
+print(f"Rows: {len(df_rating):,}")
+
+
+# Rename Text -> text
+df_rating.rename(
+    columns={"Text": "text"},
+    inplace=True
+)
+
+# Clean review text
+df_rating["text"] = df_rating["text"].apply(clean_review)
+
+# Convert:
+# 1-2 -> Negative
+# 3   -> Neutral candidate
+# 4-5 -> Positive
+df_rating["sentiment"] = df_rating["Score"].apply(
+    rating_to_sentiment
+)
+
+df_rating["source"] = "new_rating"
+
+
+# ============================================================
+# DISPLAY SOURCE DISTRIBUTIONS
+# ============================================================
+
+print("\n" + "=" * 70)
+print("SOURCE SENTIMENT DISTRIBUTIONS")
+print("=" * 70)
+
+print("\nOld Amazon:")
+print(
+    df_old["sentiment"]
+    .value_counts()
+    .sort_index()
+)
+
+print("\nNew Binary:")
+print(
+    df_binary["sentiment"]
+    .value_counts()
+    .sort_index()
+)
+
+print("\nNew Rating:")
+print(
+    df_rating["sentiment"]
+    .value_counts()
+    .sort_index()
+)
+
+
+# ============================================================
+# COMBINE DATASETS
+# ============================================================
+
+print("\n" + "=" * 70)
+print("COMBINING DATASETS")
+print("=" * 70)
+
+combined = pd.concat(
+    [
+        df_old[["text", "sentiment", "source"]],
+        df_binary[["text", "sentiment", "source"]],
+        df_rating[["text", "sentiment", "source"]],
+    ],
+    ignore_index=True
+)
+
+print(
+    f"Total rows before cleaning: "
+    f"{len(combined):,}"
+)
+
+
+# ============================================================
+# REMOVE INVALID REVIEWS
+# ============================================================
+
+print("\nRemoving empty reviews...")
+
+combined = combined[
+    combined["text"].str.len() >= 10
+].copy()
+
+print(
+    f"Rows after removing very short reviews: "
+    f"{len(combined):,}"
+)
+
+
+# ============================================================
+# REMOVE DUPLICATES
+# ============================================================
+
+print("\nRemoving duplicate reviews...")
+
+before_duplicates = len(combined)
+
+combined["text_normalized"] = (
+    combined["text"]
+    .str.lower()
+    .str.strip()
+)
+
+combined = combined.drop_duplicates(
+    subset=["text_normalized"]
+).copy()
+
+duplicates_removed = (
+    before_duplicates - len(combined)
+)
+
+print(
+    f"Duplicates removed: "
+    f"{duplicates_removed:,}"
+)
+
+print(
+    f"Rows remaining: "
+    f"{len(combined):,}"
+)
+
+
+# ============================================================
+# IMPORTANT:
+# SCORE-3 REVIEWS ARE ONLY NEUTRAL CANDIDATES
+# ============================================================
+
+print("\n" + "=" * 70)
+print("FILTERING NEUTRAL CANDIDATES")
+print("=" * 70)
+
+# Only use 3-star reviews from the NEW rating dataset
+# as Neutral candidates.
+#
+# We deliberately DO NOT use all 3-star reviews from
+# the old dataset automatically.
+
+neutral_candidates = combined[
+    (combined["source"] == "new_rating")
+    & (combined["sentiment"] == NEUTRAL)
+].copy()
+
+print(
+    f"Initial Neutral candidates: "
+    f"{len(neutral_candidates):,}"
+)
+
+
+# ============================================================
+# REMOVE OBVIOUSLY EXTREME SENTIMENT FROM NEUTRAL
+# ============================================================
+
+strong_positive_words = [
+    "excellent",
+    "amazing",
+    "fantastic",
+    "wonderful",
+    "perfect",
+    "awesome",
+    "outstanding",
+    "love it",
+    "love this",
+    "highly recommend",
+    "best product",
+    "great product",
+]
+
+strong_negative_words = [
+    "terrible",
+    "horrible",
+    "awful",
+    "worst",
+    "useless",
+    "waste of money",
+    "do not buy",
+    "don't buy",
+    "never buy",
+    "highly disappointed",
+    "completely disappointed",
+]
+
+
+def is_extreme_neutral_candidate(text):
+
+    text_lower = text.lower()
+
+    positive_hits = sum(
+        phrase in text_lower
+        for phrase in strong_positive_words
     )
-    print(f"Success! {len(final_df)} cleaned reviews saved as '{output_path}' ({count_summary}).")
-    return final_df
+
+    negative_hits = sum(
+        phrase in text_lower
+        for phrase in strong_negative_words
+    )
+
+    # Remove reviews containing strong sentiment signals.
+    if positive_hits > 0:
+        return False
+
+    if negative_hits > 0:
+        return False
+
+    return True
 
 
-if __name__ == "__main__":
-    preprocess_dataset()
+neutral_candidates = neutral_candidates[
+    neutral_candidates["text"].apply(
+        is_extreme_neutral_candidate
+    )
+].copy()
+
+print(
+    f"Neutral candidates after basic filtering: "
+    f"{len(neutral_candidates):,}"
+)
+
+
+# ============================================================
+# CREATE NEGATIVE CANDIDATES
+# ============================================================
+
+negative_candidates = combined[
+    combined["sentiment"] == NEGATIVE
+].copy()
+
+positive_candidates = combined[
+    combined["sentiment"] == POSITIVE
+].copy()
+
+
+print("\nAvailable candidates:")
+
+print(
+    f"Negative: {len(negative_candidates):,}"
+)
+
+print(
+    f"Neutral:  {len(neutral_candidates):,}"
+)
+
+print(
+    f"Positive: {len(positive_candidates):,}"
+)
+
+
+# ============================================================
+# CHECK WHETHER ENOUGH DATA EXISTS
+# ============================================================
+
+if len(negative_candidates) < TARGET_PER_CLASS:
+    raise ValueError(
+        "Not enough Negative reviews."
+    )
+
+if len(neutral_candidates) < TARGET_PER_CLASS:
+    raise ValueError(
+        "Not enough Neutral reviews after filtering."
+    )
+
+if len(positive_candidates) < TARGET_PER_CLASS:
+    raise ValueError(
+        "Not enough Positive reviews."
+    )
+
+
+# ============================================================
+# SAMPLE 25,000 FROM EACH CLASS
+# ============================================================
+
+print("\n" + "=" * 70)
+print("BALANCING DATASET")
+print("=" * 70)
+
+negative_final = negative_candidates.sample(
+    n=TARGET_PER_CLASS,
+    random_state=RANDOM_STATE
+)
+
+neutral_final = neutral_candidates.sample(
+    n=TARGET_PER_CLASS,
+    random_state=RANDOM_STATE
+)
+
+positive_final = positive_candidates.sample(
+    n=TARGET_PER_CLASS,
+    random_state=RANDOM_STATE
+)
+
+
+# ============================================================
+# COMBINE FINAL DATASET
+# ============================================================
+
+final_df = pd.concat(
+    [
+        negative_final,
+        neutral_final,
+        positive_final
+    ],
+    ignore_index=True
+)
+
+
+# ============================================================
+# FINAL CLEANUP
+# ============================================================
+
+final_df = final_df[
+    ["text", "sentiment", "source"]
+].copy()
+
+final_df = final_df.sample(
+    frac=1,
+    random_state=RANDOM_STATE
+).reset_index(drop=True)
+
+
+# ============================================================
+# FINAL CHECK
+# ============================================================
+
+print("\n" + "=" * 70)
+print("FINAL DATASET")
+print("=" * 70)
+
+print(
+    f"Total reviews: {len(final_df):,}"
+)
+
+print("\nClass distribution:")
+
+class_names = {
+    0: "Negative",
+    1: "Neutral",
+    2: "Positive"
+}
+
+counts = final_df["sentiment"].value_counts().sort_index()
+
+for label, count in counts.items():
+
+    print(
+        f"{class_names[label]}: "
+        f"{count:,}"
+    )
+
+
+print("\nSource distribution:")
+
+print(
+    final_df["source"].value_counts()
+)
+
+
+# ============================================================
+# SAVE
+# ============================================================
+
+final_df.to_csv(
+    OUTPUT_FILE,
+    index=False,
+    encoding="utf-8-sig"
+)
+
+print("\n" + "=" * 70)
+print("SUCCESS")
+print("=" * 70)
+
+print(
+    f"Final dataset saved to:\n"
+    f"{OUTPUT_FILE}"
+)

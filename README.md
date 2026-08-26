@@ -1,152 +1,477 @@
 # Product Review Sentiment Analyzer
 
-<<<<<<< HEAD
-A Streamlit web application for classifying Amazon product reviews as **negative**, **neutral**, or **positive**. The project compares three sentiment-analysis approaches:
-=======
-A Streamlit web application for classifying Amazon product reviews as **positive** or **negative**. The project compares three sentiment-analysis approaches:
->>>>>>> c9e4ea23807d8ac93774f687cde20ca737a6f5be
+A Streamlit web application for classifying products reviews into **negative**, **neutral**, or **positive** sentiment.
 
-- Multinomial Naive Bayes
-- Linear Support Vector Machine (SVM)
-- Fine-tuned BERT (optional)
+The project compares three sentiment-analysis approaches:
 
-Alongside a prediction, the app shows model confidence, assigns a simple issue category, retains an in-session review history, and provides dataset and model-performance views.
+- **Multinomial Naive Bayes**
+- **Linear Support Vector Machine (SVM)**
+- **Fine-tuned BERT**
+
+The application provides sentiment predictions, model confidence, issue-category detection, review history, dataset statistics, and model-performance comparisons.
 
 ## Features
 
-<<<<<<< HEAD
-- Classify a custom product review as negative, neutral, or positive.
-=======
-- Classify a custom product review as positive or negative.
->>>>>>> c9e4ea23807d8ac93774f687cde20ca737a6f5be
-- Choose between Naive Bayes, SVM, and BERT models when they are trained.
-- See the prediction confidence and the prepared text used by classical models.
-- Categorise review content into product quality/performance, product accuracy/expectation,
-  delivery/packaging, seller/customer service, price/value, or other issues.
-- Explore class counts, issue categories, and common words in the cleaned dataset.
-- Compare accuracy, precision, recall, and F1 score for trained models.
+- Classify a custom product review as **negative**, **neutral**, or **positive**.
+- Choose between Naive Bayes, SVM, and BERT models.
+- Display the predicted sentiment and model confidence.
+- Display the processed text used by the classical machine-learning models.
+- Categorise reviews into:
+  - Product Quality / Performance
+  - Product Accuracy / Expectation
+  - Delivery / Packaging
+  - Seller / Customer Service
+  - Price / Value
+  - Other
+- Explore sentiment class distributions.
+- Explore issue categories and common words in the dataset.
+- Compare model performance using:
+  - Accuracy
+  - Precision
+  - Recall
+  - F1 Score
+- Maintain an in-session review history.
+- Use previously trained models without retraining.
 
-## Project structure
+---
+
+## Project Structure
 
 ```text
 .
-├── app.py                       # Streamlit application
-├── feature_setup.py             # Builds TF-IDF features and train/test split
+├── app.py                              # Streamlit application
+├── feature_setup.py                    # Builds TF-IDF features and train/test split
+├── README.md
+├── .gitattributes                      # Git LFS configuration
+│
 ├── data/
-│   ├── train.ft.txt.bz2         # Raw fastText-format Amazon review dataset
-│   ├── cleaned_amazon_reviews.csv
-│   └── train_test_data.pkl
+│   ├── amazon_new.csv                  # Binary sentiment source dataset
+│   ├── data_amazon.xlsx - Sheet1.csv   # Original Amazon review dataset
+│   ├── Reviews_New.csv                 # Rating-based review dataset
+│   ├── final_sentiment_dataset.csv     # Final balanced dataset
+│   ├── dataset_split.pkl               # Shared train/test split
+│   └── train_test_data.pkl             # TF-IDF train/test data
+│
 ├── saved_models/
-│   ├── tfidf_vectorizer.pkl
-│   ├── naive_bayes_model.pkl
-│   └── *_metrics.json
+│   ├── bert_metrics.json               # BERT evaluation metrics
+│   ├── naive_bayes_metrics.json        # Naive Bayes evaluation metrics
+│   ├── naive_bayes_model.pkl           # Trained Naive Bayes model
+│   ├── svm_metrics.json                # SVM evaluation metrics
+│   ├── svm_model.pkl                   # Trained SVM model
+│   ├── tfidf_vectorizer.pkl            # Trained TF-IDF vectorizer
+│   │
+│   └── bert_sentiment_model/
+│       ├── config.json
+│       ├── model.safetensors           # Fine-tuned BERT weights
+│       ├── tokenizer.json
+│       └── tokenizer_config.json
+│
 └── src/
-    ├── data_preprocessing.py    # Cleans and samples the raw dataset
-    ├── naivebayes.py            # Trains Naive Bayes
-    ├── svm.py                   # Trains linear SVM
-    ├── bert.py                  # Fine-tunes BERT
-    ├── get_bert_metrics.py      # Evaluates a saved BERT model
-    └── evaluation.py            # Shared evaluation utilities
+    ├── data_preprocessing.py           # Creates the final balanced dataset
+    ├── evaluation.py                   # Shared evaluation utilities
+    ├── naivebayes.py                   # Trains Naive Bayes
+    ├── svm.py                          # Trains SVM
+    ├── bert.py                         # Fine-tunes BERT
+    └── get_bert_metrics.py             # Evaluates saved BERT model
+
 ```
 
 ## Requirements
-
+Before running the project, install Python.
+Recommended version:
 - Python 3.10 or later
-- `pip`
-
-Install the dependencies:
-
+You can check your Python version using:
 ```bash
-pip install streamlit pandas scikit-learn nltk
+python --version
 ```
 
-To train or run the BERT model, also install:
+## Installation
+### 1. Clone the Repository
+
+Clone the repository from GitHub:
+
+```bash
+git clone https://github.com/Yingyi0103/AI-asignment.git
+```
+
+Move into the project directory:
+
+```bash
+cd AI-asignment
+```
+### 2. Install Git LFS
+
+The trained BERT model is stored using Git Large File Storage (Git LFS).
+
+Install Git LFS if it is not already installed:
+
+```bash
+git lfs install
+```
+
+Then download the LFS files:
+
+```bash
+git lfs pull
+```
+
+This downloads the BERT model file:
+
+```text
+saved_models/bert_sentiment_model/model.safetensors
+```
+
+---
+
+### 3. Install Python Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+Alternatively, install the required packages manually:
+
+```bash
+pip install streamlit pandas numpy scikit-learn nltk
+```
+
+For the BERT model:
 
 ```bash
 pip install torch transformers
 ```
 
-> On its first run, the BERT training script downloads the `bert-base-uncased` checkpoint from Hugging Face.
+Depending on the version of the project, the following packages may also be required:
 
-## Run the app
+```bash
+pip install scipy
+```
 
-From the project root:
+---
+
+## Running the Application
+
+From the project root directory, run:
 
 ```bash
 streamlit run app.py
 ```
 
-Open the local address displayed by Streamlit, usually `http://localhost:8501`.
+Streamlit will start a local web server.
 
-<<<<<<< HEAD
-After regenerating the three-class dataset, rebuild the TF-IDF features and retrain any classical model. Previously saved two-class models cannot predict neutral reviews.
-=======
-The repository includes a trained Naive Bayes model and TF-IDF vectorizer, so the app can be started immediately. Train the SVM or BERT model if you would like those options to be available too.
->>>>>>> c9e4ea23807d8ac93774f687cde20ca737a6f5be
+Open the address displayed in the terminal, usually:
 
-## Train the models
-
-Run commands from the project root in this order.
-
-### 1. Preprocess the dataset
-
-<<<<<<< HEAD
-This combines both source files into `data/cleaned_amazon_reviews.csv`: up to 25,000 negative and 25,000 positive reviews from `train.ft.txt.bz2`, plus every usable review from `data_amazon.xlsx - Sheet1.csv`. Ratings of 1-2 become negative, 3 becomes neutral, and 4-5 become positive.
-=======
-This creates a balanced sample of up to 25,000 reviews per class, cleans the text, and saves `data/cleaned_amazon_reviews.csv`.
->>>>>>> c9e4ea23807d8ac93774f687cde20ca737a6f5be
-
-```bash
-python src/data_preprocessing.py
+```text
+http://localhost:8501
 ```
 
-### 2. Build TF-IDF features
+The application should open in your web browser.
 
-This creates the train/test split and saves the vectorizer.
+---
+
+## Using the Application
+
+### Single Review Prediction
+
+1. Open the Streamlit application.
+2. Select a sentiment analysis model.
+3. Enter a product review.
+4. Run the prediction.
+5. The system will display:
+   - Predicted sentiment
+   - Model confidence
+   - Detected issue category
+
+Example review:
+
+```text
+The product arrived quickly and works exactly as expected.
+```
+
+---
+
+### Available Models
+
+The application supports three sentiment analysis models.
+
+#### 1. Multinomial Naive Bayes
+
+A classical machine learning model that uses TF-IDF features.
+
+Advantages:
+
+- Fast training
+- Fast predictions
+- Lower computational requirements
+
+---
+
+#### 2. Linear Support Vector Machine
+
+A classical machine learning model trained using TF-IDF features.
+
+Advantages:
+
+- Strong performance on text classification
+- Efficient for large datasets
+- Usually provides good generalisation
+
+---
+
+#### 3. Fine-Tuned BERT
+
+A transformer-based deep learning model fine-tuned for sentiment classification.
+
+Advantages:
+
+- Understands contextual relationships between words
+- Uses natural review text
+- Can capture more complex language patterns
+
+Disadvantages:
+
+- Requires significantly more computational resources
+- Training is recommended on a GPU
+
+---
+
+## Dataset Preparation
+
+The project uses multiple review datasets to create a balanced three-class sentiment dataset.
+
+The final dataset is saved as:
+
+```text
+data/final_sentiment_dataset.csv
+```
+
+The sentiment labels are:
+
+| Label | Sentiment |
+|---|---|
+| 0 | Negative |
+| 1 | Neutral |
+| 2 | Positive |
+
+The final dataset is balanced using:
+
+- 25,000 Negative reviews
+- 25,000 Neutral reviews
+- 25,000 Positive reviews
+
+Total:
+
+```text
+75,000 reviews
+```
+
+The dataset is created from multiple review sources.
+
+---
+
+## Rebuilding the Dataset
+
+Before training Naive Bayes or SVM, create the shared train/test split and TF-IDF features.
+
+Run:
 
 ```bash
 python feature_setup.py
 ```
 
-### 3. Train a classical model
+This process:
+
+1. Loads `final_sentiment_dataset.csv`.
+2. Removes invalid reviews.
+3. Cleans review text.
+4. Removes duplicate reviews.
+5. Creates a stratified train/test split.
+6. Fits the TF-IDF vectorizer using training data only.
+7. Saves the vectorizer.
+8. Saves the train/test data.
+
+The following files are created:
+
+```text
+data/dataset_split.pkl
+data/train_test_data.pkl
+saved_models/tfidf_vectorizer.pkl
+```
+
+The same train/test split is used to support fair comparison between models.
+
+---
+
+## Training Naive Bayes
+
+Run:
 
 ```bash
 python src/naivebayes.py
+```
+
+The trained model and evaluation metrics are saved in:
+
+```text
+saved_models/naive_bayes_model.pkl
+saved_models/naive_bayes_metrics.json
+```
+
+---
+
+## Training SVM
+
+Run:
+
+```bash
 python src/svm.py
 ```
 
-Each command saves its trained model and evaluation metrics to `saved_models/`.
+The trained model and evaluation metrics are saved in:
 
-### 4. Train BERT (optional)
+```text
+saved_models/svm_model.pkl
+saved_models/svm_metrics.json
+```
 
-Fine-tuning is more resource-intensive than the classical models and is best run with a compatible GPU when available.
+---
+
+## Training BERT
+
+BERT training requires significantly more computational resources than Naive Bayes and SVM.
+
+For best performance, training should be performed using a GPU.
+
+Run:
 
 ```bash
 python src/bert.py
 ```
 
-The trained model and tokenizer are saved to `saved_models/bert_sentiment_model/`. To recalculate its evaluation metrics later, run:
+The fine-tuned BERT model is saved in:
+
+```text
+saved_models/bert_sentiment_model/
+```
+
+The folder contains:
+
+```text
+config.json
+model.safetensors
+tokenizer.json
+tokenizer_config.json
+```
+
+---
+
+## Evaluating BERT
+
+To evaluate the saved BERT model, run:
 
 ```bash
 python src/get_bert_metrics.py
 ```
 
-## Data preparation
+The evaluation metrics are saved as:
 
-<<<<<<< HEAD
-The cleaned dataset combines both raw files. Its labels are:
+```text
+saved_models/bert_metrics.json
+```
 
-- `0` = negative (fastText `__label__1` and ratings 1-2)
-- `1` = neutral (ratings 3)
-- `2` = positive (fastText `__label__2` and ratings 4-5)
-=======
-The raw dataset uses fastText labels:
+---
 
-- `__label__1` → negative (`0`)
-- `__label__2` → positive (`1`)
->>>>>>> c9e4ea23807d8ac93774f687cde20ca737a6f5be
+## Recommended Training Order
 
-Preprocessing normalises text, removes URLs and non-letter characters, removes English stop words, and applies optional lemmatisation and stemming. The classical models use TF-IDF unigrams and bigrams with up to 5,000 features.
+If you are starting from the raw datasets, run the commands in the following order.
+
+### Step 1: Create the Final Dataset
+
+```bash
+python src/data_preprocessing.py
+```
+
+### Step 2: Build TF-IDF Features
+
+```bash
+python feature_setup.py
+```
+
+### Step 3: Train Naive Bayes
+
+```bash
+python src/naivebayes.py
+```
+
+### Step 4: Train SVM
+
+```bash
+python src/svm.py
+```
+
+### Step 5: Train BERT
+
+```bash
+python src/bert.py
+```
+
+### Step 6: Evaluate BERT
+
+```bash
+python src/get_bert_metrics.py
+```
+
+### Step 7: Run Streamlit Application
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## Using Pre-Trained Models
+
+The repository may already contain trained models.
+
+If the following files are available:
+
+```text
+saved_models/naive_bayes_model.pkl
+saved_models/svm_model.pkl
+saved_models/tfidf_vectorizer.pkl
+saved_models/bert_sentiment_model/
+```
+
+you can run the Streamlit application without retraining the models.
+
+Simply run:
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## Git LFS
+
+The BERT model file is large:
+
+```text
+model.safetensors
+```
+
+Therefore, it is stored using Git Large File Storage (Git LFS).
+
+After cloning the repository, make sure to run:
+
+```bash
+git lfs install
+git lfs pull
+```
+
+Without Git LFS, the full BERT model may not be downloaded correctly.
+
+---
 
 ## Current result
 
@@ -154,14 +479,54 @@ The saved Naive Bayes model was evaluated on the held-out test split:
 
 | Model | Accuracy | Precision | Recall | F1 score |
 | --- | ---: | ---: | ---: | ---: |
-| Naive Bayes | 84.84% | 84.45% | 85.40% | 84.92% |
+| Naive Bayes | 73.85% | 74.36% | 73.85% | 74.00% |
+| SVM | 76.08% | 76.07% | 76.08% | 76.07% |
+| BERT | 80.77% | 80.89% | 80.77% | 80.81% |
 
 ## Notes
 
-- Selecting a model that has not yet been trained shows a helpful message explaining which training command to run.
-- The review history is stored only for the current browser session.
-- NLTK lemmatisation is optional; the project still runs if the WordNet corpus is not installed.
+- Naive Bayes and SVM use TF-IDF features.
+- BERT uses natural review text.
+- The same train/test split is used for model comparison.
+- The review history is stored only during the current Streamlit session.
+- BERT training is recommended on a GPU.
+- If the final dataset is regenerated, the TF-IDF features and classical models should also be rebuilt and retrained.
+
+---
+
+## Technologies Used
+
+The project uses:
+
+- Python
+- Streamlit
+- Pandas
+- NumPy
+- Scikit-learn
+- NLTK
+- PyTorch
+- Hugging Face Transformers
+- Git
+- Git LFS
+
+---
+
+## Running the Complete System
+
+For most users who simply want to run the application:
+
+```bash
+git clone https://github.com/Yingyi0103/AI-asignment.git
+cd AI-asignment
+git checkout Final_Testing
+git lfs install
+git lfs pull
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+---
 
 ## License
 
-Add a license file before publishing if you would like to specify how others may use this project.
+This project is developed for educational and academic purposes.
